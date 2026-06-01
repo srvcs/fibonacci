@@ -1,60 +1,65 @@
 # srvcs-fibonacci
 
-The Fibonacci-sequence orchestrator of the srvcs.cloud distributed standard
-library.
+## Name
 
-Its single concern: **sequences: nth Fibonacci number (0-indexed).** It owns the
-*control flow* — an iterative fold over the sequence — but does no arithmetic of
-its own. Each successive term is produced by asking
-[`srvcs-add`](https://github.com/srvcs/add) for `a + b`.
+| Field | Value |
+| --- | --- |
+| Service | `srvcs-fibonacci` |
+| Slug | `fibonacci` |
+| Repository | `srvcs/fibonacci` |
+| Package | `srvcs-fibonacci` |
+| Kind | `orchestrator` |
 
-```
-fibonacci(n):
-    a, b = 0, 1
-    repeat n times:
-        next = add(a, b)
-        a, b = b, next
-    return a
-```
+## Function
 
-`fibonacci(0) == 0`, `fibonacci(1) == 1`, `fibonacci(10) == 55`. A negative index
-is rejected with `422` before any dependency is called.
+sequences: nth Fibonacci number (0-indexed)
+
+## Dependencies
+
+| Dependency | Repository |
+| --- | --- |
+| `srvcs-add` | [srvcs/add](https://github.com/srvcs/add) |
 
 ## API
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/` | Service identity, concern, and dependency list |
-| `POST` | `/` | Compute the `n`th Fibonacci number |
-| `GET` | `/healthz` `/readyz` `/metrics` `/openapi.json` | srvcs service standard surface |
+| `GET` | `/` | Service identity |
+| `POST` | `/` | Evaluate the service function |
+| `GET` | `/healthz` | Liveness probe |
+| `GET` | `/readyz` | Readiness probe |
+| `GET` | `/metrics` | Prometheus metrics |
+| `GET` | `/openapi.json` | OpenAPI document |
 
-```sh
-curl -s -X POST localhost:8080/ -H 'content-type: application/json' -d '{"value": 10}'
-# {"value":10,"result":55}
-```
+## Inputs
 
-Responses:
+| Name | Type | Required |
+| --- | --- | --- |
+| `value` | `integer` | yes |
 
-- `200 {"value": n, "result": fib}` — evaluated.
-- `422 {"error": "n must be >= 0"}` — `n` is negative; also forwarded verbatim if
-  a dependency rejects an operand.
-- `500` — the loop exceeded its iteration cap (a defensive guard).
-- `503` — a dependency is unavailable.
+## Outputs
 
-## Dependencies
-
-- [`srvcs-add`](https://github.com/srvcs/add)
+| Name | Type |
+| --- | --- |
+| `value` | `integer` |
+| `result` | `integer` |
 
 ## Configuration
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SRVCS_BIND_ADDR` | `0.0.0.0:8080` | Bind address |
-| `SRVCS_ADD_URL` | `http://127.0.0.1:8081` | Base URL of `srvcs-add` |
 | `SRVCS_ENV` | `development` | Environment label for logs |
 | `RUST_LOG` | `info,tower_http=info` | Tracing filter |
+| `SRVCS_ADD_URL` | `http://127.0.0.1:8081` | Base URL for srvcs-add |
 
-## Local checks
+## Error Behavior
+
+- `422` means the request could not be evaluated for the documented input shape.
+- `503` means a required dependency was unavailable or returned an unexpected response.
+- Dependency validation errors are forwarded when this service delegates validation.
+
+## Local Checks
 
 ```sh
 cargo fmt --check
@@ -62,10 +67,8 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-Orchestration tests stand up a *computing* mock `srvcs-add` in-process — it reads
-the request body and returns the real `a + b`, so the fold is genuinely exercised
-against the asserted Fibonacci values. See
-[`srvcs/platform`](https://github.com/srvcs/platform) for the shared standard.
+See the [srvcs service standard](https://github.com/srvcs/platform/blob/main/STANDARD.md) for the full operational contract.
 
-> Note: the `cargoHash` in `flake.nix` is inherited from the template and must be
-> refreshed with a `nix build` before the Nix gates pass.
+## Metadata
+
+Machine-readable service metadata lives in `srvcs.yaml`. Keep it aligned with this README when the service contract changes.
